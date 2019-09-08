@@ -1919,7 +1919,7 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		}
 
 		ps = NULL;
-		CAM_DBG(CAM_SENSOR, "seq_type %d",  pd->seq_type);
+		CAM_INFO(CAM_SENSOR, "seq_type %d",  pd->seq_type);
 		switch (pd->seq_type) {
 		case SENSOR_MCLK:
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
@@ -1980,8 +1980,19 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 					}
 					else {
 #endif
-					CAM_DBG(CAM_SENSOR,
+					CAM_INFO(CAM_SENSOR,
 						"Disable Regulator");
+#if defined(CONFIG_SENSOR_RETENTION) && defined(CONFIG_EEPROM_FORCE_DOWN)
+					if((retention == 2) && (pd->seq_type == SENSOR_VIO))
+						ret =  cam_soc_util_regulator_force_disable(
+							soc_info->rgltr[ps->seq_val],
+							soc_info->rgltr_name[ps->seq_val],
+							soc_info->rgltr_min_volt[ps->seq_val],
+							soc_info->rgltr_max_volt[ps->seq_val],
+							soc_info->rgltr_op_mode[ps->seq_val],
+							soc_info->rgltr_delay[ps->seq_val]);
+					else
+#endif
 					ret =  cam_soc_util_regulator_disable(
 					soc_info->rgltr[ps->seq_val],
 					soc_info->rgltr_name[ps->seq_val],

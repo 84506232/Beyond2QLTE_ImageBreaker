@@ -1927,6 +1927,51 @@ static int cam_eeprom_power_down(struct cam_eeprom_ctrl_t *e_ctrl)
 	return rc;
 }
 
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+/**
+ * cam_eeprom_force_power_down - Power down eeprom hardware forcely
+ * @e_ctrl:    ctrl structure
+ *
+ * Returns success or failure
+ */
+static int cam_eeprom_force_power_down(struct cam_eeprom_ctrl_t *e_ctrl)
+{
+	struct cam_sensor_power_ctrl_t *power_info;
+	struct cam_hw_soc_info         *soc_info;
+	struct cam_eeprom_soc_private  *soc_private;
+	int                             rc = 0;
+
+	if (!e_ctrl) {
+		CAM_ERR(CAM_EEPROM, "failed: e_ctrl %pK", e_ctrl);
+		return -EINVAL;
+	}
+
+	soc_private =
+		(struct cam_eeprom_soc_private *)e_ctrl->soc_info.soc_private;
+	power_info = &soc_private->power_info;
+	soc_info = &e_ctrl->soc_info;
+
+	if (!power_info) {
+		CAM_ERR(CAM_EEPROM, "failed: power_info %pK", power_info);
+		return -EINVAL;
+	}
+#if defined(CONFIG_SENSOR_RETENTION)
+	rc = cam_sensor_util_power_down(power_info, soc_info, 2);
+#else
+	rc = cam_sensor_util_power_down(power_info, soc_info);
+#endif
+	if (rc) {
+		CAM_ERR(CAM_EEPROM, "power down the core is failed:%d", rc);
+		return rc;
+	}
+
+	if (e_ctrl->io_master_info.master_type == CCI_MASTER)
+		camera_io_release(&(e_ctrl->io_master_info));
+
+	return rc;
+}
+#endif
+
 /**
  * cam_eeprom_match_id - match eeprom id
  * @e_ctrl:     ctrl structure
@@ -2808,7 +2853,11 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	}
 	return rc;
 power_down:
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+	cam_eeprom_force_power_down(e_ctrl);
+#else
 	cam_eeprom_power_down(e_ctrl);
+#endif
 memdata_free:
 	vfree(e_ctrl->cal_data.mapdata);
 error:

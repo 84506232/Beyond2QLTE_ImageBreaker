@@ -516,6 +516,27 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 	uint32_t rgltr_min_volt, uint32_t rgltr_max_volt,
 	uint32_t rgltr_op_mode, uint32_t rgltr_delay);
 
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+/**
+ * cam_soc_util_regulator_force_disable()
+ *
+ * @brief:              Disable single regulator (Disable selected power forcely regardless of use in other)
+ *
+ * @rgltr               Regulator that needs to be turned ON
+ * @rgltr_name          Associated Regulator name
+ * @rgltr_min_volt:     Requested minimum volatage
+ * @rgltr_max_volt:     Requested maximum volatage
+ * @rgltr_op_mode:      Requested Load
+ * @rgltr_delay:        Requested delay needed aaftre enabling regulator
+ *
+ * @return:             Success or failure
+ */
+int cam_soc_util_regulator_force_disable(struct regulator *rgltr,
+	const char *rgltr_name,
+	uint32_t rgltr_min_volt, uint32_t rgltr_max_volt,
+	uint32_t rgltr_op_mode, uint32_t rgltr_delay);
+#endif
+
 
 /**
  * cam_soc_util_w()

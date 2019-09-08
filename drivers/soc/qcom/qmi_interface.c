@@ -19,6 +19,7 @@
 #include <linux/net.h>
 #include <linux/completion.h>
 #include <linux/idr.h>
+#include <linux/ipc_logging.h>
 #include <linux/string.h>
 #include <net/sock.h>
 #include <linux/workqueue.h>
@@ -26,6 +27,11 @@
 
 static struct socket *qmi_sock_create(struct qmi_handle *qmi,
 				      struct sockaddr_qrtr *sq);
+
+static void *qmi_txn_ilc;
+#define QMI_INFO(x, ...) \
+	if (qmi_txn_ilc) \
+		ipc_log_string(qmi_txn_ilc, x, ##__VA_ARGS__)
 
 /**
  * qmi_recv_new_server() - handler of NEW_SERVER control message
@@ -329,6 +335,7 @@ int qmi_txn_init(struct qmi_handle *qmi, struct qmi_txn *txn,
 		pr_err("failed to allocate transaction id\n");
 
 	txn->id = ret;
+	QMI_INFO("%s qmi[%p] txn[%p] id[%d]\n", __func__, qmi, txn, txn->id);
 	mutex_unlock(&qmi->txn_lock);
 
 	return ret;
@@ -351,10 +358,12 @@ int qmi_txn_wait(struct qmi_txn *txn, unsigned long timeout)
 	struct qmi_handle *qmi = txn->qmi;
 	int ret;
 
+	QMI_INFO("%s before wait qmi[%p] txn[%p] id[%d]\n", __func__, qmi, txn, txn->id);
 	ret = wait_for_completion_timeout(&txn->completion, timeout);
 
 	mutex_lock(&txn->lock);
 	if (txn->result == -ENETRESET) {
+		QMI_INFO("%s after wait -ENETRESET qmi[%p] txn[%p] id[%d]\n", __func__, qmi, txn, txn->id);
 		mutex_unlock(&txn->lock);
 		return txn->result;
 	}
@@ -362,6 +371,7 @@ int qmi_txn_wait(struct qmi_txn *txn, unsigned long timeout)
 
 	mutex_lock(&qmi->txn_lock);
 	mutex_lock(&txn->lock);
+	QMI_INFO("%s After wait REMOVE qmi[%p] txn[%p] id[%d]\n", __func__, qmi, txn, txn->id);
 	idr_remove(&qmi->txns, txn->id);
 	mutex_unlock(&txn->lock);
 	mutex_unlock(&qmi->txn_lock);
@@ -383,6 +393,7 @@ void qmi_txn_cancel(struct qmi_txn *txn)
 
 	mutex_lock(&qmi->txn_lock);
 	mutex_lock(&txn->lock);
+	QMI_INFO("%s qmi[%p] txn[%p] id[%d]\n", __func__, qmi, txn, txn->id);
 	idr_remove(&qmi->txns, txn->id);
 	mutex_unlock(&txn->lock);
 	mutex_unlock(&qmi->txn_lock);
@@ -459,17 +470,18 @@ static void qmi_handle_net_reset(struct qmi_handle *qmi)
 	if (IS_ERR(sock))
 		return;
 
-	mutex_lock(&qmi->sock_lock);
-	sock_release(qmi->sock);
-	qmi->sock = NULL;
-	mutex_unlock(&qmi->sock_lock);
-
 	qmi_recv_del_server(qmi, -1, -1);
 
 	if (qmi->ops.net_reset)
 		qmi->ops.net_reset(qmi);
 
 	mutex_lock(&qmi->sock_lock);
+	/* Already qmi_handle_release() started */
+	if (!qmi->sock) {
+			sock_release(sock);
+			return;
+	}
+	sock_release(qmi->sock);
 	qmi->sock = sock;
 	qmi->sq = sq;
 	mutex_unlock(&qmi->sock_lock);
@@ -506,7 +518,8 @@ static void qmi_handle_message(struct qmi_handle *qmi,
 		txn = idr_find(&qmi->txns, hdr->txn_id);
 		if (txn)
 			mutex_lock(&txn->lock);
-		mutex_unlock(&qmi->txn_lock);
+		else 
+			mutex_unlock(&qmi->txn_lock); 
 	}
 
 	if (txn && txn->dest && txn->ei) {
@@ -518,10 +531,12 @@ static void qmi_handle_message(struct qmi_handle *qmi,
 		complete(&txn->completion);
 
 		mutex_unlock(&txn->lock);
+		mutex_unlock(&qmi->txn_lock); 
 	} else if (txn) {
 		qmi_invoke_handler(qmi, sq, txn, buf, len);
 
 		mutex_unlock(&txn->lock);
+		mutex_unlock(&qmi->txn_lock); 
 	} else {
 		/* Create a txn based on the txn_id of the incoming message */
 		memset(&tmp_txn, 0, sizeof(tmp_txn));
@@ -579,16 +594,21 @@ static void qmi_data_ready_work(struct work_struct *work)
 
 static void qmi_data_ready(struct sock *sk)
 {
-	struct qmi_handle *qmi = sk->sk_user_data;
+	struct qmi_handle *qmi = NULL;
 
 	/*
 	 * This will be NULL if we receive data while being in
 	 * qmi_handle_release()
 	 */
-	if (!qmi)
+	read_lock_bh(&sk->sk_callback_lock);
+	qmi = sk->sk_user_data;
+	if (!qmi) {
+		read_unlock_bh(&sk->sk_callback_lock);
 		return;
+	}
 
 	queue_work(qmi->wq, &qmi->work);
+	read_unlock_bh(&sk->sk_callback_lock);
 }
 
 static struct socket *qmi_sock_create(struct qmi_handle *qmi,
@@ -671,6 +691,9 @@ int qmi_handle_init(struct qmi_handle *qmi, size_t recv_buf_size,
 		goto err_destroy_wq;
 	}
 
+	if (!qmi_txn_ilc) {
+		qmi_txn_ilc = ipc_log_context_create(20, "qmi_txns", 0);
+	}
 	return 0;
 
 err_destroy_wq:
@@ -690,26 +713,34 @@ EXPORT_SYMBOL(qmi_handle_init);
  */
 void qmi_handle_release(struct qmi_handle *qmi)
 {
-	struct socket *sock = qmi->sock;
+	struct socket *sock;
 	struct qmi_service *svc, *tmp;
 	struct qmi_txn *txn;
 	int txn_id;
 
-	sock->sk->sk_user_data = NULL;
-	cancel_work_sync(&qmi->work);
-
-	qmi_recv_del_server(qmi, -1, -1);
-
 	mutex_lock(&qmi->sock_lock);
+	sock = qmi->sock;
+	pr_err("qmi_handle_release() : %pS -> %pS\n",
+			__builtin_return_address(1),
+			__builtin_return_address(0));
+
+	write_lock_bh(&sock->sk->sk_callback_lock);
+	sock->sk->sk_user_data = NULL;
+	write_unlock_bh(&sock->sk->sk_callback_lock);
 	sock_release(sock);
 	qmi->sock = NULL;
 	mutex_unlock(&qmi->sock_lock);
+
+	cancel_work_sync(&qmi->work);
+
+	qmi_recv_del_server(qmi, -1, -1);
 
 	destroy_workqueue(qmi->wq);
 
 	mutex_lock(&qmi->txn_lock);
 	idr_for_each_entry(&qmi->txns, txn, txn_id) {
 		mutex_lock(&txn->lock);
+		QMI_INFO("%s qmi[%p] txn[%p] id[%d]\n", __func__, qmi, txn, txn->id);
 		idr_remove(&qmi->txns, txn->id);
 		txn->result = -ENETRESET;
 		complete(&txn->completion);

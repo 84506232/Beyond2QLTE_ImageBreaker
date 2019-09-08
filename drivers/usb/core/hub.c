@@ -1757,12 +1757,8 @@ static int hub_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	 *   usbcore.autosuspend = -1 then keep autosuspend disabled.
 	 */
 #ifdef CONFIG_PM
-	if (hdev->dev.power.autosuspend_delay >= 0) {
-		if (hdev->parent)
-			pm_runtime_set_autosuspend_delay(&hdev->dev, 0);
-		else
-			pm_runtime_set_autosuspend_delay(&hdev->dev, 1000);
-	}
+	if (hdev->dev.power.autosuspend_delay >= 0)
+		pm_runtime_set_autosuspend_delay(&hdev->dev, 2000);
 #endif
 
 	/*

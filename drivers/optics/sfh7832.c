@@ -22,7 +22,7 @@
 #define SFHXXXX_CHIP_NAME	"SFHXXXX"
 
 #define VERSION				"1"
-#define SUB_VERSION			"27"
+#define SUB_VERSION			"28"
 #define VENDOR_VERSION		"o"
 
 #define MODULE_NAME_HRM		"hrm_sensor"
@@ -3714,6 +3714,10 @@ void sfh7832_set_mode(int onoff, enum op_mode mode)
 		sfh7832_data->enabled_mode = 0;
 		sfh7832_data->mode_sdk_enabled = 0;
 		sfh7832_data->mode_svc_enabled = 0;
+		sfh7832_data->ioffset_led1 = 0;
+		sfh7832_data->ioffset_led2 = 0;
+		sfh7832_data->ioffset_led3 = 0;
+		sfh7832_data->ioffset_led4 = 0;
 		sfh7832_irq_set_state(PWR_OFF);
 		sfh7832_pin_control(PWR_OFF);
 

@@ -643,7 +643,7 @@ static void dd_decrypt_work(struct work_struct *work) {
 			dd_error("failed vendor crypto\n");
 			goto abort_out;
 		}
-	} else {
+		} else {
 		if (dd_sec_crypt_bio_pages(info, req->u.bio.orig, NULL, DD_DECRYPT)) {
 			dd_error("failed dd crypto\n");
 			goto abort_out;
@@ -1686,6 +1686,7 @@ static long dd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		if (!igrab(ioc_work->inode)) {
 			dd_error("failed to grab inode refcount. this inode may be getting removed\n");
+			kfree(ioc_work);
 			return 0;
 		}
 

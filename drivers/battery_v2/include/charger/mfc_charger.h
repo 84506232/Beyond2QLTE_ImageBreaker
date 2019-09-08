@@ -272,6 +272,7 @@
 #define	WPC_COM_LED_CONTROL				0x0B /* Data Value LED Enable(0x00), LED Disable(0xFF) */
 #define	WPC_COM_REQ_AFC_TX				0x0C /* Data Value (0x00) */
 #define	WPC_COM_COOLING_CTRL			0x0D /* Data Value ON(0x00), OFF(0xFF) */
+#define	WPC_COM_RX_ID					0x0E /* Received RX ID */
 #define	WPC_COM_CHG_LEVEL				0x0F /* Battery level */
 #define	WPC_COM_ENTER_PHM				0x18 /* GEAR entered PHM */
 #define	WPC_COM_DISABLE_TX				0x19 /* Turn off UNO of TX, OFF(0xFF) */

@@ -71,6 +71,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 
 	irq_status0 = cam_io_r_mb(base + CCI_IRQ_STATUS_0_ADDR);
 	irq_status1 = cam_io_r_mb(base + CCI_IRQ_STATUS_1_ADDR);
+	CAM_DBG(CAM_CCI, "BASE: %pK", base);
 	CAM_DBG(CAM_CCI, "irq0:%x irq1:%x", irq_status0, irq_status1);
 
 	if (irq_status0 & CCI_IRQ_STATUS_0_RST_DONE_ACK_BMSK) {
@@ -97,6 +98,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		(irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD)) {
 		cci_dev->cci_master_info[MASTER_0].status = 0;
 		rd_done_th_assert = true;
+		CAM_DBG(CAM_CCI, "MASTER_0 THRESHOLD AND RD_DONE");
 		complete(&cci_dev->cci_master_info[MASTER_0].th_complete);
 		complete(&cci_dev->cci_master_info[MASTER_0].rd_done);
 	}
@@ -104,14 +106,18 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		(!rd_done_th_assert)) {
 		cci_dev->cci_master_info[MASTER_0].status = 0;
 		rd_done_th_assert = true;
-		if (cci_dev->is_burst_read)
+		if (cci_dev->is_burst_read) {
+			CAM_DBG(CAM_CCI, "MASTER_0 RD_DONE AND BURST READ");
 			complete(
 			&cci_dev->cci_master_info[MASTER_0].th_complete);
+		}
+		CAM_DBG(CAM_CCI, "MASTER_0 RD_DONE TRIGGERED");
 		complete(&cci_dev->cci_master_info[MASTER_0].rd_done);
 	}
 	if ((irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD) &&
 		(!rd_done_th_assert)) {
 		cci_dev->cci_master_info[MASTER_0].status = 0;
+		CAM_DBG(CAM_CCI, "MASTER_0 RD_THRESHOLD TRIGGERS");
 		complete(&cci_dev->cci_master_info[MASTER_0].th_complete);
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK) {
@@ -124,6 +130,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		atomic_set(&cci_master_info->q_free[QUEUE_0], 0);
 		cci_master_info->status = 0;
 		if (atomic_read(&cci_master_info->done_pending[QUEUE_0]) == 1) {
+			CAM_DBG(CAM_CCI, "MASTER_O :: QUEUE_0 REPORT TRIGGERED");
 			complete(&cci_master_info->report_q[QUEUE_0]);
 			atomic_set(&cci_master_info->done_pending[QUEUE_0], 0);
 		}
@@ -141,6 +148,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		atomic_set(&cci_master_info->q_free[QUEUE_1], 0);
 		cci_master_info->status = 0;
 		if (atomic_read(&cci_master_info->done_pending[QUEUE_1]) == 1) {
+			CAM_DBG(CAM_CCI, "MASTER_O :: QUEUE_1 REPORT TRIGGERED");
 			complete(&cci_master_info->report_q[QUEUE_1]);
 			atomic_set(&cci_master_info->done_pending[QUEUE_1], 0);
 		}
@@ -153,6 +161,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		(irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_RD_THRESHOLD)) {
 		cci_dev->cci_master_info[MASTER_1].status = 0;
 		rd_done_th_assert = true;
+		CAM_DBG(CAM_CCI, "MASTER_1 THRESHOLD AND RD_DONE TRIGGERS");
 		complete(&cci_dev->cci_master_info[MASTER_1].th_complete);
 		complete(&cci_dev->cci_master_info[MASTER_1].rd_done);
 	}
@@ -160,14 +169,18 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		(!rd_done_th_assert)) {
 		cci_dev->cci_master_info[MASTER_1].status = 0;
 		rd_done_th_assert = true;
-		if (cci_dev->is_burst_read)
+		if (cci_dev->is_burst_read) {
+			CAM_DBG(CAM_CCI, "MASTER_1 THRESHOLD TRIGGERS");
 			complete(
 			&cci_dev->cci_master_info[MASTER_1].th_complete);
+		}
+		CAM_DBG(CAM_CCI, "MASTER_1 RD_DONE TRIGGERS"); 
 		complete(&cci_dev->cci_master_info[MASTER_1].rd_done);
 	}
 	if ((irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_RD_THRESHOLD) &&
 		(!rd_done_th_assert)) {
 		cci_dev->cci_master_info[MASTER_1].status = 0;
+		CAM_DBG(CAM_CCI, "MASTER_1 THRESHOLD TRIGGERED");
 		complete(&cci_dev->cci_master_info[MASTER_1].th_complete);
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK) {
@@ -180,6 +193,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		atomic_set(&cci_master_info->q_free[QUEUE_0], 0);
 		cci_master_info->status = 0;
 		if (atomic_read(&cci_master_info->done_pending[QUEUE_0]) == 1) {
+			CAM_DBG(CAM_CCI, "MASTER_1 :: QUEUE_0 REPORT_Q TRIGGERED");
 			complete(&cci_master_info->report_q[QUEUE_0]);
 			atomic_set(&cci_master_info->done_pending[QUEUE_0], 0);
 		}
@@ -197,6 +211,7 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 		atomic_set(&cci_master_info->q_free[QUEUE_1], 0);
 		cci_master_info->status = 0;
 		if (atomic_read(&cci_master_info->done_pending[QUEUE_1]) == 1) {
+			CAM_DBG(CAM_CCI, "MASTER_1 :: QUEUE_1 REPORT_Q TRIGGERED");
 			complete(&cci_master_info->report_q[QUEUE_1]);
 			atomic_set(&cci_master_info->done_pending[QUEUE_1], 0);
 		}
@@ -204,19 +219,16 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 			&cci_dev->cci_master_info[MASTER_1].lock_q[QUEUE_1],
 			flags);
 	}
-	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_RD_PAUSE)
-		CAM_DBG(CAM_CCI, "RD_PAUSE ON MASTER_0");
-
-	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_RD_PAUSE)
-		CAM_DBG(CAM_CCI, "RD_PAUSE ON MASTER_1");
 
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M0_Q0Q1_HALT_ACK_BMSK) {
 		cci_dev->cci_master_info[MASTER_0].reset_pending = TRUE;
+		CAM_DBG(CAM_CCI, "MO_Q0Q1 HALT QUEUE");
 		cam_io_w_mb(CCI_M0_RESET_RMSK,
 			base + CCI_RESET_CMD_ADDR);
 	}
 	if (irq_status0 & CCI_IRQ_STATUS_0_I2C_M1_Q0Q1_HALT_ACK_BMSK) {
 		cci_dev->cci_master_info[MASTER_1].reset_pending = TRUE;
+		CAM_DBG(CAM_CCI, "M1_Q0Q1 HALT QUEUE");
 		cam_io_w_mb(CCI_M1_RESET_RMSK,
 			base + CCI_RESET_CMD_ADDR);
 	}
@@ -281,6 +293,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 					CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD;
 				cci_dev->irqs_disabled &=
 					~CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD;
+				CAM_DBG(CAM_CCI, "M0:: irq_update_rd_done: 0x%x and cci_dev->irqs_disabled : 0x%x",
+						irq_update_rd_done ,cci_dev->irqs_disabled);
 			}
 			spin_unlock_irqrestore(&cci_dev->lock_status, flags);
 		}
@@ -292,6 +306,8 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 					CCI_IRQ_STATUS_1_I2C_M1_RD_THRESHOLD;
 				cci_dev->irqs_disabled &=
 					~CCI_IRQ_STATUS_1_I2C_M1_RD_THRESHOLD;
+				CAM_DBG(CAM_CCI, "M1:: irq_update_rd_done: 0x%x and cci_dev->irqs_disabled : 0x%x",
+					irq_update_rd_done ,cci_dev->irqs_disabled);
 			}
 			spin_unlock_irqrestore(&cci_dev->lock_status, flags);
 		}
@@ -299,9 +315,16 @@ irqreturn_t cam_cci_irq(int irq_num, void *data)
 
 	if (irq_update_rd_done != 0) {
 		irq_update_rd_done |= cam_io_r_mb(base + CCI_IRQ_MASK_1_ADDR);
+		CAM_DBG(CAM_CCI, "irq_update_rd_done: 0x%x", irq_update_rd_done);
 		cam_io_w_mb(irq_update_rd_done, base + CCI_IRQ_MASK_1_ADDR);
 	}
 
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M0_RD_PAUSE) {
+		CAM_DBG(CAM_CCI, "RD_PAUSE ON MASTER_0");
+	}
+	if (irq_status1 & CCI_IRQ_STATUS_1_I2C_M1_RD_PAUSE) {
+		CAM_DBG(CAM_CCI, "RD_PAUSE ON MASTER_1");
+	}
 
 	cam_io_w_mb(irq_status1, base + CCI_IRQ_CLEAR_1_ADDR);
 	cam_io_w_mb(0x1, base + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);

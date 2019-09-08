@@ -4415,7 +4415,6 @@
 							regulator-name = "s2mpb03-ldo3";
 							regulator-min-microvolt = <0x1b7740>;
 							regulator-max-microvolt = <0x1b7740>;
-							regulator-always-on;
 							phandle = <0xbb>;
 						};
 

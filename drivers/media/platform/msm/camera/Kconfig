@@ -122,3 +122,10 @@ config CAMERA_SSM_I2C_ENV
 	default n
 	---help---
 	Enables support for SSM I2C test
+
+config EEPROM_FORCE_DOWN
+	tristate "EEPROM power down forcely when EEPROM i2c error"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for force EEPROM power down

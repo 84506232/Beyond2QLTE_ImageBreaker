@@ -1329,7 +1329,6 @@ static int _mmc_sd_resume(struct mmc_host *host)
 	} else if (err) {
 		goto out;
 	}
-	mmc_card_clr_suspended(host->card);
 
 	err = mmc_resume_clk_scaling(host);
 	if (err) {
@@ -1339,6 +1338,7 @@ static int _mmc_sd_resume(struct mmc_host *host)
 	}
 
 out:
+	mmc_card_clr_suspended(host->card);
 	mmc_release_host(host);
 	return err;
 }

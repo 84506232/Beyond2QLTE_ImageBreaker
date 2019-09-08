@@ -899,7 +899,7 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 	int32_t rc = 0;
 	uint32_t val = 0, i = 0, j = 0, irq_mask_update = 0;
 	unsigned long rem_jiffies, flags;
-	int32_t read_words = 0, exp_words = 0;
+	int32_t tmp_read_words = 0, read_words = 0, exp_words = 0;
 	int32_t index = 0, first_byte = 0, total_read_words = 0;
 	enum cci_i2c_master_t master;
 	enum cci_i2c_queue_t queue = QUEUE_1;
@@ -924,18 +924,18 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 	mutex_lock(&cci_dev->cci_master_info[master].mutex);
 	if (cci_dev->cci_master_info[master].is_first_req == true) {
 		cci_dev->cci_master_info[master].is_first_req = false;
-		CAM_DBG(CAM_CCI, "Master: %d, curr_freq: %d, req_freq: %d",
+		CAM_INFO(CAM_CCI, "Master: %d, curr_freq: %d, req_freq: %d",
 			master, cci_dev->i2c_freq_mode[master],
 			c_ctrl->cci_info->i2c_freq_mode);
 		down(&cci_dev->cci_master_info[master].master_sem);
 	} else if (c_ctrl->cci_info->i2c_freq_mode
 		!= cci_dev->i2c_freq_mode[master]) {
-		CAM_DBG(CAM_CCI, "Master: %d, curr_freq: %d, req_freq: %d",
+		CAM_INFO(CAM_CCI, "Master: %d, curr_freq: %d, req_freq: %d",
 			master, cci_dev->i2c_freq_mode[master],
 			c_ctrl->cci_info->i2c_freq_mode);
 		down(&cci_dev->cci_master_info[master].master_sem);
 	} else {
-		CAM_DBG(CAM_CCI, "Master: %d, curr_freq: %d, req_freq: %d",
+		CAM_INFO(CAM_CCI, "Master: %d, curr_freq: %d, req_freq: %d",
 			master, cci_dev->i2c_freq_mode[master],
 			c_ctrl->cci_info->i2c_freq_mode);
 		spin_lock(&cci_dev->cci_master_info[master].freq_cnt);
@@ -983,7 +983,7 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 		goto rel_mutex_q;
 	}
 
-	CAM_DBG(CAM_CCI, "set param sid 0x%x retries %d id_map %d",
+	CAM_INFO(CAM_CCI, "set param sid 0x%x retries %d id_map %d",
 		c_ctrl->cci_info->sid, c_ctrl->cci_info->retries,
 		c_ctrl->cci_info->id_map);
 	val = CCI_I2C_SET_PARAM_CMD | c_ctrl->cci_info->sid << 4 |
@@ -991,14 +991,14 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 		c_ctrl->cci_info->id_map << 18;
 	rc = cam_cci_write_i2c_queue(cci_dev, val, master, queue);
 	if (rc < 0) {
-		CAM_DBG(CAM_CCI, "failed rc: %d", rc);
+		CAM_WARN(CAM_CCI, "failed rc: %d", rc);
 		goto rel_mutex_q;
 	}
 
 	val = CCI_I2C_LOCK_CMD;
 	rc = cam_cci_write_i2c_queue(cci_dev, val, master, queue);
 	if (rc < 0) {
-		CAM_DBG(CAM_CCI, "failed rc: %d", rc);
+		CAM_WARN(CAM_CCI, "failed rc: %d", rc);
 		goto rel_mutex_q;
 	}
 
@@ -1010,27 +1010,27 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 
 	rc = cam_cci_write_i2c_queue(cci_dev, val, master, queue);
 	if (rc < 0) {
-		CAM_DBG(CAM_CCI, "failed rc: %d", rc);
+		CAM_WARN(CAM_CCI, "failed rc: %d", rc);
 		goto rel_mutex_q;
 	}
 
 	val = CCI_I2C_READ_CMD | (read_cfg->num_byte << 4);
 	rc = cam_cci_write_i2c_queue(cci_dev, val, master, queue);
 	if (rc < 0) {
-		CAM_DBG(CAM_CCI, "failed rc: %d", rc);
+		CAM_WARN(CAM_CCI, "failed rc: %d", rc);
 		goto rel_mutex_q;
 	}
 
 	val = CCI_I2C_UNLOCK_CMD;
 	rc = cam_cci_write_i2c_queue(cci_dev, val, master, queue);
 	if (rc < 0) {
-		CAM_DBG(CAM_CCI, "failed rc: %d", rc);
+		CAM_WARN(CAM_CCI, "failed rc: %d", rc);
 		goto rel_mutex_q;
 	}
 
 	val = cam_io_r_mb(base + CCI_I2C_M0_Q0_CUR_WORD_CNT_ADDR
 			+ master * 0x200 + queue * 0x100);
-	CAM_DBG(CAM_CCI, "cur word cnt 0x%x", val);
+	CAM_INFO(CAM_CCI, "cur word cnt 0x%x", val);
 	cam_io_w_mb(val, base + CCI_I2C_M0_Q0_EXEC_WORD_CNT_ADDR
 			+ master * 0x200 + queue * 0x100);
 
@@ -1038,8 +1038,8 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 	cam_io_w_mb(val, base + CCI_QUEUE_START_ADDR);
 
 	exp_words = ((read_cfg->num_byte / 4) + 1);
-	CAM_DBG(CAM_CCI, "waiting for threshold [exp_words %d]", exp_words);
 
+	CAM_INFO(CAM_CCI, "waiting for threshold [exp_words %d]", exp_words);
 	while (total_read_words != exp_words) {
 		rem_jiffies = wait_for_completion_timeout(
 			&cci_dev->cci_master_info[master].th_complete,
@@ -1062,12 +1062,12 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 		read_words = cam_io_r_mb(base +
 			CCI_I2C_M0_READ_BUF_LEVEL_ADDR + master * 0x100);
 		if (read_words <= 0) {
-			CAM_DBG(CAM_CCI, "FIFO Buffer lvl is 0");
+			CAM_INFO(CAM_CCI, "FIFO Buffer lvl is 0");
 			continue;
 		}
 
 		j++;
-		CAM_DBG(CAM_CCI, "Iteration: %u read_words %d", j, read_words);
+		tmp_read_words = read_words;
 
 		total_read_words += read_words;
 		while (read_words > 0) {
@@ -1091,25 +1091,30 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 			read_words--;
 		}
 
-		CAM_DBG(CAM_CCI, "Iteraion:%u total_read_words %d",
-			j, total_read_words);
-
 		spin_lock_irqsave(&cci_dev->lock_status, flags);
 		if (cci_dev->irqs_disabled) {
 			irq_mask_update =
 				cam_io_r_mb(base + CCI_IRQ_MASK_1_ADDR) |
 				CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD;
 			if (master == MASTER_0 && cci_dev->irqs_disabled &
-				CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD)
+				CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD) {
 				irq_mask_update |=
 					CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD;
-			else if (master == MASTER_1 && cci_dev->irqs_disabled &
-				CCI_IRQ_STATUS_1_I2C_M1_RD_THRESHOLD)
+				CAM_INFO(CAM_CCI, "Iteration: %u read_words %d total_read_words %d master: %d irq_mask_update: 0x%x",
+					j, tmp_read_words, total_read_words, master, irq_mask_update);
+			} else if (master == MASTER_1 && cci_dev->irqs_disabled &
+				CCI_IRQ_STATUS_1_I2C_M1_RD_THRESHOLD) {
 				irq_mask_update |=
 					CCI_IRQ_STATUS_1_I2C_M1_RD_THRESHOLD;
+				CAM_INFO(CAM_CCI, "Iteration: %u read_words %d total_read_words %d master: %d irq_mask_update: 0x%x",
+					j, tmp_read_words, total_read_words, master, irq_mask_update);
+			}
 			cam_io_w_mb(irq_mask_update,
 				base + CCI_IRQ_MASK_1_ADDR);
 		}
+		else
+			CAM_INFO(CAM_CCI, "Iteration: %u read_words %d total_read_words %d",
+				j, tmp_read_words, total_read_words);
 		spin_unlock_irqrestore(&cci_dev->lock_status, flags);
 
 		if (total_read_words == exp_words) {
@@ -1143,7 +1148,7 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 		}
 	}
 
-	CAM_DBG(CAM_CCI, "Burst read successful words_read %d",
+	CAM_INFO(CAM_CCI, "Burst read successful words_read %d",
 		total_read_words);
 
 rel_mutex_q:

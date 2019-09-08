@@ -17,9 +17,33 @@
 #include <linux/of_gpio.h>
 #include "cam_soc_util.h"
 #include "cam_debug_util.h"
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
+#include <internal.h>  // drivers/regulator/internal.h for struct regulator_dev
+#endif
 
 static char supported_clk_info[256];
 static char debugfs_dir_name[64];
+
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+static int EEPROM_VIO_enable_count = 0;
+static const char *rdev_get_name(struct regulator_dev *rdev)
+{
+	if (rdev->constraints && rdev->constraints->name)
+		return rdev->constraints->name;
+	else if (rdev->desc->name)
+		return rdev->desc->name;
+	else
+		return "";
+}
+static int is_EEPROM_VIO(struct regulator *pRegulator)
+{
+	struct regulator_dev *rdev = pRegulator->rdev;
+	const char *pDevName = rdev_get_name(rdev);
+	return (strcmp(pDevName, "s2mpb03-ldo3") == 0);
+}
+#endif
 
 /**
  * cam_soc_util_get_string_from_level()
@@ -1200,6 +1224,10 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+	if(is_EEPROM_VIO(rgltr))
+		EEPROM_VIO_enable_count--;
+#endif
 	rc = regulator_disable(rgltr);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "%s regulator disable failed", rgltr_name);
@@ -1219,6 +1247,52 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 
 	return rc;
 }
+
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+int cam_soc_util_regulator_force_disable(struct regulator *rgltr,
+	const char *rgltr_name, uint32_t rgltr_min_volt,
+	uint32_t rgltr_max_volt, uint32_t rgltr_op_mode,
+	uint32_t rgltr_delay_ms)
+{
+	int32_t rc = 0;
+	int i=0, nEEPROM_VIO_disable_req = EEPROM_VIO_enable_count;
+
+	if (!rgltr) {
+		CAM_ERR(CAM_UTIL, "Invalid NULL parameter");
+		return -EINVAL;
+	}
+
+	if(is_EEPROM_VIO(rgltr)) {
+		CAM_INFO(CAM_UTIL, "%s regulator disable forcely, enable count=%d", rgltr_name, EEPROM_VIO_enable_count);
+		EEPROM_VIO_enable_count--;
+		for (i = 0; i < nEEPROM_VIO_disable_req; ++i)
+			rc |= regulator_disable(rgltr);
+		usleep_range(10 * 1000, (10 * 1000) + 1000);
+		for (i = 0; i < nEEPROM_VIO_disable_req-1; ++i)
+			rc |= regulator_enable(rgltr);
+	}
+	else {
+		rc = regulator_disable(rgltr);
+	}
+	if (rc) {
+		CAM_ERR(CAM_UTIL, "%s regulator disable failed", rgltr_name);
+		return rc;
+	}
+
+	if (rgltr_delay_ms > 20)
+		msleep(rgltr_delay_ms);
+	else if (rgltr_delay_ms)
+		usleep_range(rgltr_delay_ms * 1000,
+			(rgltr_delay_ms * 1000) + 1000);
+
+	if (regulator_count_voltages(rgltr) > 0) {
+		regulator_set_load(rgltr, 0);
+		regulator_set_voltage(rgltr, 0, rgltr_max_volt);
+	}
+
+	return rc;
+}
+#endif
 
 
 int cam_soc_util_regulator_enable(struct regulator *rgltr,
@@ -1252,6 +1326,10 @@ int cam_soc_util_regulator_enable(struct regulator *rgltr,
 		}
 	}
 
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+	if(is_EEPROM_VIO(rgltr))
+		EEPROM_VIO_enable_count++;
+#endif
 	rc = regulator_enable(rgltr);
 	if (rc) {
 		CAM_ERR(CAM_UTIL, "%s regulator_enable failed", rgltr_name);
@@ -1316,8 +1394,13 @@ static void cam_soc_util_regulator_disable_default(
 				soc_info->rgltr_op_mode[j],
 				soc_info->rgltr_delay[j]);
 		} else {
-			if (soc_info->rgltr[j])
+			if (soc_info->rgltr[j]) {
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+				if(is_EEPROM_VIO(soc_info->rgltr[j]))
+					EEPROM_VIO_enable_count--;
+#endif
 				regulator_disable(soc_info->rgltr[j]);
+			}
 		}
 	}
 }
@@ -1337,8 +1420,13 @@ static int cam_soc_util_regulator_enable_default(
 				soc_info->rgltr_op_mode[j],
 				soc_info->rgltr_delay[j]);
 		} else {
-			if (soc_info->rgltr[j])
+			if (soc_info->rgltr[j]) {
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+				if(is_EEPROM_VIO(soc_info->rgltr[j]))
+					EEPROM_VIO_enable_count++;
+#endif
 				rc = regulator_enable(soc_info->rgltr[j]);
+			}
 		}
 
 		if (rc) {
@@ -1360,8 +1448,13 @@ disable_rgltr:
 				soc_info->rgltr_op_mode[j],
 				soc_info->rgltr_delay[j]);
 		} else {
-			if (soc_info->rgltr[j])
+			if (soc_info->rgltr[j]) {
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+				if(is_EEPROM_VIO(soc_info->rgltr[j]))
+					EEPROM_VIO_enable_count--;
+#endif
 				regulator_disable(soc_info->rgltr[j]);
+			}
 		}
 	}
 
@@ -1480,6 +1573,10 @@ put_regulator:
 		i = soc_info->num_rgltr;
 	for (i = i - 1; i >= 0; i--) {
 		if (soc_info->rgltr[i]) {
+#if defined(CONFIG_EEPROM_FORCE_DOWN)
+			if(is_EEPROM_VIO(soc_info->rgltr[i]))
+				EEPROM_VIO_enable_count--;
+#endif
 			regulator_disable(soc_info->rgltr[i]);
 			regulator_put(soc_info->rgltr[i]);
 			soc_info->rgltr[i] = NULL;
