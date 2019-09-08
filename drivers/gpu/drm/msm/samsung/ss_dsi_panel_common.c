@@ -4595,6 +4595,9 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level)
 		goto skip_bl_update;
 	}
 
+#ifdef CONFIG_HYBRID_DC_DIMMING
+	update_mdnie_dimming_register(vdd);
+#endif
 	if (is_hbm_level(vdd) && !vdd->dtsi_data.tft_common_support) {
 		cmd_cnt = ss_hbm_brightness_packet_set(vdd);
 		cmd_cnt > 0 ? vdd->display_status_dsi.hbm_mode = true : false;

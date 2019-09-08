@@ -46,6 +46,13 @@ extern struct mdnie_lite_tune_data mdnie_data;
 
 #define APP_ID_TDMB (20)	/* for fake_id() */
 
+#define ASCR_SKIN_REG_OFFSET    1
+#define MDNIE_DIMMING_THRESHOLD 100
+#define MDNIE_DIMMING_MIN       0x3F
+#define MDNIE_DIMMING_COEFF   ((0xFF - MDNIE_DIMMING_MIN) / MDNIE_DIMMING_THRESHOLD)
+#define MDNIE_DIMMING_EXPECT(level) (level * MDNIE_DIMMING_COEFF + MDNIE_DIMMING_MIN)
+#define MDNIE_DIMMING_FACTOR(level) (MDNIE_DIMMING_EXPECT(level) / 0xFF)
+
 enum BYPASS {
 	BYPASS_DISABLE = 0,
 	BYPASS_ENABLE,
@@ -369,6 +376,9 @@ void coordinate_tunning_calculate(struct samsung_display_driver_data *vdd,
 void coordinate_tunning_multi(struct samsung_display_driver_data *vdd,
     char (*coordinate_data_multi[MAX_MODE])[COORDINATE_DATA_SIZE], int mdnie_tune_index, int scr_wr_addr, int data_size);
     
+#ifdef CONFIG_HYBRID_DC_DIMMING
+void update_mdnie_dimming_register(struct samsung_display_driver_data *vdd);
+#endif
 /* COMMON FUNCTION END*/
 
 #endif /*_DSI_TCON_MDNIE_H_*/

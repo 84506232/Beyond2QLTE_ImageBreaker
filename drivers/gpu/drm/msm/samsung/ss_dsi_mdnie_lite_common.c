@@ -105,6 +105,14 @@ static void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd
 		return;
 	}
 
+#ifdef CONFIG_HYBRID_DC_DIMMING
+	if (vdd->panel_state == PANEL_PWR_ON) {
+		vdd->mdnie_mode_data = tune_data_dsi;
+		vdd->mode_updated = true;
+		if (vdd->last_brightness < MDNIE_DIMMING_THRESHOLD)
+			return;
+	}
+#endif
 	DPRINT("hbm: %d bypass: %d accessibility: %d app: %d mode: %d hdr: %d " \
 			"night_mode: %d whiteRGB: (%d %d %d) color_lens: (%d %d %d)\n",
 			tune->hbm_enable, tune->mdnie_bypass, tune->mdnie_accessibility,
@@ -123,6 +131,57 @@ static void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd
 
 	ss_send_cmd(vdd, TX_MDNIE_TUNE);
 }
+
+#ifdef CONFIG_HYBRID_DC_DIMMING
+void update_mdnie_dimming_register(struct samsung_display_driver_data *vdd)
+{
+	struct mdnie_lite_tune_data *mdnie_data = vdd->mdnie.mdnie_data;
+	struct dsi_panel_cmd_set *pcmds;
+	int i, mdnie_scr_step_index, mdnie_ascr_cmd_offset, mdnie_ascr_cmd_end;
+	float brightness = vdd->br.bl_level / 100;
+	u8 dim_buf[mdnie_data->dsi_rgb_sensor_mdnie_1_size];
+
+	if (!vdd->mdnie_dimming_data || !vdd->mdnie_mode_data || vdd->panel_state != PANEL_PWR_ON) {
+		DPRINT("mdnie dimming is not ready\n");
+		return;
+	}
+
+	if (vdd->mode_updated || vdd->last_brightness < MDNIE_DIMMING_THRESHOLD || brightness < MDNIE_DIMMING_THRESHOLD) {
+		memcpy(vdd->mdnie_dimming_data, vdd->mdnie_mode_data,
+			vdd->mdnie.mdnie_data->dsi_bypass_mdnie_size * sizeof(struct dsi_cmd_desc));	
+
+		if (brightness < MDNIE_DIMMING_THRESHOLD) {
+			mdnie_scr_step_index = mdnie_data->dsi_scr_step_index;
+			mdnie_ascr_cmd_offset = mdnie_data->mdnie_color_blinde_cmd_offset;
+			mdnie_ascr_cmd_end = mdnie_ascr_cmd_offset + MDNIE_SCR_CMD_SIZE;
+
+			for (i = 0; i < mdnie_data->dsi_rgb_sensor_mdnie_1_size; i++) {
+				if (i >= mdnie_ascr_cmd_offset && i < mdnie_ascr_cmd_end) {
+					dim_buf[i] = vdd->mdnie_dimming_data[mdnie_scr_step_index].msg.tx_buf[i] * MDNIE_DIMMING_FACTOR(brightness);
+				} else if (i == ASCR_SKIN_REG_OFFSET) {
+					dim_buf[i] = 0x00;
+				} else {
+					dim_buf[i] = vdd->mdnie_dimming_data[mdnie_scr_step_index].msg.tx_buf[i];
+				}
+			}
+			vdd->mdnie_dimming_data[mdnie_scr_step_index].msg.tx_buf = dim_buf;
+		}
+
+		pcmds = ss_get_cmds(vdd, TX_MDNIE_TUNE);
+		pcmds->cmds = vdd->mdnie_dimming_data;
+		pcmds->count = mdnie_data->dsi_bypass_mdnie_size;
+
+		/* temp to avoid tx fail with single TX enabled */
+		for (i = 0; i < pcmds->count; i++)
+			pcmds->cmds[i].last_command = true;
+
+		ss_send_cmd(vdd, TX_MDNIE_TUNE);
+	}
+
+	vdd->mode_updated = false;
+	vdd->last_brightness = brightness;
+}
+#endif
 
 /* uupdate_dsi_tcon_mdnie_register():
  * pdate and tx mdnie packet to panel wich vdd is included.
@@ -1584,6 +1643,11 @@ struct mdnie_lite_tun_type *init_dsi_tcon_mdnie_class(struct samsung_display_dri
 
 	/* Set default link_stats as DSI_HS_MODE for mdnie tune data */
 //	vdd_data->mdnie_tune_data[index].mdnie_tune_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
+#ifdef CONFIG_HYBRID_DC_DIMMING
+	vdd->mdnie_dimming_data =
+		kzalloc(vdd->mdnie.mdnie_data->dsi_bypass_mdnie_size * sizeof(struct dsi_cmd_desc), GFP_KERNEL);
+	vdd->mode_updated = false;
+#endif
 
 	return tune;
 }

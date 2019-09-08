@@ -1235,6 +1235,16 @@ struct samsung_display_driver_data {
 	struct mdnie_info mdnie;
 	int mdnie_loaded_dsi;
 
+#ifdef CONFIG_HYBRID_DC_DIMMING
+	/*
+	 * mDNIe Dimming
+	 */
+	struct dsi_cmd_desc *mdnie_mode_data;
+	struct dsi_cmd_desc *mdnie_dimming_data;
+	float last_brightness;
+	bool mode_updated;
+#endif
+
 	/*
 	 * STN
 	 */
